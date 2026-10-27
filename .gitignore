@@ -1,0 +1,35 @@
+.venv/
+__pycache__/
+*.py[cod]
+.streamlit/
+.pytest_cache/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Generated Python package metadata
+*.egg-info/
+build/
+dist/
+
+# Test and coverage output
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editors and operating-system files
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+.DS_Store
+
+# Local documents and generated indexes
+data/uploads/*
+!data/uploads/.gitkeep
+data/index/*
+!data/index/.gitkeep
