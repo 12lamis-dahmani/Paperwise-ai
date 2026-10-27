@@ -1,0 +1,14 @@
+{"question":"Was ist das Hauptziel des Papers?","expected_pages":[1],"answerable":true}
+{"question":"Was ist das Optimal Scoring Problem?","expected_pages":[1],"answerable":true}
+{"question":"Welche Machine-Learning-Methode wird verwendet?","expected_pages":[1],"answerable":true}
+{"question":"Woher stammen die Trainingsdaten?","expected_pages":[1],"answerable":true}
+{"question":"Welche drei Phasen umfasst der vorgestellte Ansatz?","expected_pages":[2],"answerable":true}
+{"question":"Welche Kriterien muss eine Situation erfüllen, um als potenzieller Torschuss erkannt zu werden?","expected_pages":[2],"answerable":true}
+{"question":"Wie unterscheidet das System einen Torschuss von einem Pass oder Dribbling?","expected_pages":[2],"answerable":true}
+{"question":"Wie viele Spiele wurden analysiert?","expected_pages":[2],"answerable":true}
+{"question":"Wie viele Torschüsse wurden insgesamt extrahiert?","expected_pages":[2],"answerable":true}
+{"question":"Wie viele Torschüsse waren erfolgreich?","expected_pages":[2],"answerable":true}
+{"question":"Welche PPO-Reward-Funktion verwenden die Autoren?","expected_pages":[],"answerable":false}
+{"question":"Welche GPU wurde für das Training verwendet?","expected_pages":[],"answerable":false}
+{"question":"Welches Transformer-Modell verwenden die Autoren?","expected_pages":[],"answerable":false}
+{"question":"Wie viele Trainingsstunden wurden auf einer NVIDIA RTX 4090 benötigt?","expected_pages":[],"answerable":false}

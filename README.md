@@ -15,8 +15,8 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
 
-ollama pull llama3.2
-ollama pull nomic-embed-text
+ollama pull qwen3:4b
+ollama pull embeddinggemma
 streamlit run frontend/app.py
 ```
 

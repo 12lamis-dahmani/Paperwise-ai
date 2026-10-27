@@ -77,6 +77,16 @@ def test_whitespace_is_trimmed() -> None:
     assert chunks[0].text == "hello"
 
 
+def test_sentence_boundaries_are_preserved() -> None:
+    text = "First complete sentence. Second complete sentence. Third complete sentence."
+
+    chunks = chunk_pages([(1, text)], size=45, overlap=0)
+
+    assert chunks[0].text == "First complete sentence."
+    assert chunks[1].text == "Second complete sentence."
+    assert chunks[2].text == "Third complete sentence."
+
+
 def test_chunk_pages_preserves_page_and_overlap() -> None:
     chunks = chunk_pages([(2, "abcdefghij")], size=6, overlap=2)
 
@@ -102,3 +112,37 @@ def test_chunk_pages_rejects_invalid_overlap() -> None:
 def test_invalid_chunk_parameters(size: int, overlap: int) -> None:
     with pytest.raises(ValueError):
         chunk_pages([(1, "abcdefgh")], size=size, overlap=overlap)
+
+def test_long_sentence_respects_chunk_size() -> None:
+    text = "A" * 100
+
+    chunks = chunk_pages([(1, text)], size=40, overlap=10)
+
+    assert len(chunks) > 1
+    assert all(len(chunk.text) <= 40 for chunk in chunks)
+
+
+def test_overlap_does_not_exceed_chunk_size() -> None:
+    text = (
+        "First sentence has some content. "
+        "Second sentence has some content. "
+        "Third sentence has some content."
+    )
+
+    chunks = chunk_pages([(1, text)], size=50, overlap=30)
+
+    assert all(len(chunk.text) <= 50 for chunk in chunks)
+
+
+def test_sentence_overlap_preserves_previous_sentence() -> None:
+    text = (
+        "First sentence. "
+        "Second sentence. "
+        "Third sentence."
+    )
+
+    chunks = chunk_pages([(1, text)], size=35, overlap=20)
+
+    assert len(chunks) >= 2
+    assert "Second sentence." in chunks[0].text
+    assert "Second sentence." in chunks[1].text
