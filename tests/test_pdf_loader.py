@@ -1,6 +1,10 @@
 import pymupdf
 
-from paperwise.ingestion.pdf_loader import load_pdf, normalize_page_text
+from paperwise.ingestion.pdf_loader import (
+    extract_page_text,
+    load_pdf,
+    normalize_page_text,
+)
 
 
 def test_normalize_page_text_preserves_paragraphs_and_repairs_hyphenation() -> None:
@@ -18,7 +22,26 @@ def test_load_pdf_extracts_each_page_once_with_page_numbers() -> None:
     pdf_bytes = document.tobytes()
     document.close()
 
-    assert load_pdf(pdf_bytes) == [(1, "Page one A paragraph.")]
+    assert load_pdf(pdf_bytes) == [(1, "Page one\n\nA paragraph.")]
+
+
+def test_extract_page_text_reads_two_columns_in_order() -> None:
+    class FakePage:
+        rect = type("Rect", (), {"width": 600})()
+
+        def get_text(self, kind: str, sort: bool = False):
+            assert kind == "blocks"
+            assert sort is False
+            return [
+                (310, 20, 550, 40, "Right top\n", 0, 0),
+                (40, 100, 280, 120, "Left bottom\n", 0, 0),
+                (40, 20, 280, 40, "Left top\n", 0, 0),
+                (310, 100, 550, 120, "Right bottom\n", 0, 0),
+            ]
+
+    assert extract_page_text(FakePage()) == (
+        "Left top\n\nLeft bottom\n\nRight top\n\nRight bottom"
+    )
 
 def test_load_pdf_multiple_pages() -> None:
     document = pymupdf.open()
