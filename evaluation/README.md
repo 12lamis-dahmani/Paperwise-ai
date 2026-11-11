@@ -20,4 +20,20 @@ Review:
 - Does the assistant say when evidence is missing?
 - Are the retrieved pages relevant?
 
-Automated retrieval and answer metrics will be added in a later version.
+## Answer evaluation
+
+Run the answer baseline with Ollama available:
+
+```powershell
+python evaluation/answer_baseline.py data/samples/paper.pdf evaluation/questions.jsonl
+```
+
+The script evaluates all questions in the JSONL file:
+
+- `answerable: true`: the answer must cite at least one expected page.
+- `answerable: false`: the answer must use the configured abstention sentence.
+- `expected_keywords` (optional): every listed fact must occur in the answer.
+
+The output reports retrieval hit rate, supported-answer accuracy, and correct
+rejection of unsupported questions. This is still a lightweight regression
+check, not a complete semantic judge.

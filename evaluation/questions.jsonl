@@ -12,3 +12,19 @@
 {"question":"Welche GPU wurde für das Training verwendet?","expected_pages":[],"answerable":false}
 {"question":"Welches Transformer-Modell verwenden die Autoren?","expected_pages":[],"answerable":false}
 {"question":"Wie viele Trainingsstunden wurden auf einer NVIDIA RTX 4090 benötigt?","expected_pages":[],"answerable":false}
+{"question":"Warum werden objektive Weltdaten statt subjektiver Weltmodelle für das Training verwendet?","expected_pages":[3],"answerable":true}
+{"question":"Warum werden Polarkoordinaten gegenüber kartesischen Koordinaten bevorzugt?","expected_pages":[3],"answerable":true}
+{"question":"Welche Aufgaben übernehmen die beiden neuronalen Netze?","expected_pages":[3],"answerable":true}
+{"question":"Welche Architektur besitzt das Best-Scoring-Point-Netzwerk?","expected_pages":[4],"answerable":true}
+{"question":"Welche Architektur besitzt das Success-Rate-Netzwerk?","expected_pages":[4],"answerable":true}
+{"question":"Welche Klassifikationsgenauigkeit erreicht das Success-Rate-Netzwerk?","expected_pages":[4],"answerable":true}
+{"question":"Wie groß ist der durchschnittliche Vorhersagefehler des Best-Scoring-Point-Netzwerks?","expected_pages":[4],"answerable":true}
+{"question":"Warum werden Torschusssituationen auf ein Viertel des Spielfelds gespiegelt?","expected_pages":[3],"answerable":true}
+{"question":"Warum benötigt das Success-Rate-Netzwerk positive und negative Trainingsbeispiele?","expected_pages":[2,4],"answerable":true}
+{"question":"Warum wurde zusätzlich ein Regionenmodell eingeführt?","expected_pages":[4],"answerable":true}
+{"question":"Welche Eingabevariablen sind für das Success-Rate-Netzwerk besonders wichtig?","expected_pages":[4],"answerable":true}
+{"question":"Wie unterscheiden sich die Torerfolgsquoten der konventionellen und neuronalen Variante in den Testspielen?","expected_pages":[5],"answerable":true}
+{"question":"Welche PPO-Hyperparameter verwenden die Autoren?","expected_pages":[],"answerable":false}
+{"question":"Welche Version von PyTorch wurde für das Training verwendet?","expected_pages":[],"answerable":false}
+{"question":"Welches Large Language Model wurde für die Torschussvorhersage eingesetzt?","expected_pages":[],"answerable":false}
+{"question":"Welche Ergebnisse erzielte das Modell auf dem ImageNet-Datensatz?","expected_pages":[],"answerable":false}
