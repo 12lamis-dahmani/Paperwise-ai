@@ -35,6 +35,10 @@ The default models can be changed in the sidebar. Ollama must be reachable at `h
 
 This version does not yet reliably understand figures, tables, scanned PDFs, or mathematical notation. It also does not persist documents between application restarts.
 
+## Evaluation: v0.2
+
+The evaluation now reports retrieval hit rate, explicit citation hit rate, expected-fact match rate, and abstention accuracy separately. It flags citations to pages that were not retrieved and saves each run as a JSON report with model and chunking settings. Fact matching is based on configured text variants, so it is a regression check rather than a semantic correctness judge. See [evaluation/README.md](evaluation/README.md) for usage and dataset format.
+
 ## Start the API
 
 ```powershell

@@ -35,3 +35,6 @@ data/index/*
 !data/index/.gitkeep
 
 data/*
+
+# Locally generated evaluation reports
+evaluation/results/

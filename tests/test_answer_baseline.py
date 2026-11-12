@@ -1,4 +1,3 @@
-
 import json
 
 import pytest
@@ -6,308 +5,256 @@ import pytest
 from paperwise.generation.prompts import ABSTENTION_ANSWER
 from evaluation.answer_baseline import (
     cited_pages,
-    contains_expected_keywords,
+    evaluate_case,
+    expected_fact_matches,
     is_abstention,
     load_question_cases,
+    summarize_results,
+    write_report,
 )
 
-
-# --------------------------------------------------
-# 1. Tests for cited_pages()
-# --------------------------------------------------
-
-@pytest.mark.parametrize(
-    ("answer", "expected"),
-    [
-        ("Methode [Seite 1] und Ergebnis **Seite 4**.", {1, 4}),
-        ("Die Ergebnisse stehen auf Seite 12.", {12}),
-        ("Siehe seite 3 und SEITE 8.", {3, 8}),
-        ("Seite 2, Seite 2 und Seite 5.", {2, 5}),
-        ("Keine Seitenreferenz vorhanden.", set()),
-        ("", set()),
-        ("Seite abc", set()),
-        ("Seite -3", set()),
-        ("Seite 1 und Seite 10", {1, 10}),
-    ],
-)
-def test_cited_pages(answer, expected):
-    assert cited_pages(answer) == expected
-
-
-# --------------------------------------------------
-# 2. Tests for is_abstention()
-# --------------------------------------------------
-
-def test_is_abstention_exact():
-    assert is_abstention(ABSTENTION_ANSWER)
-
-
-def test_is_abstention_quoted():
-    assert is_abstention(f'"{ABSTENTION_ANSWER}"')
-
-
-def test_is_abstention_case_insensitive():
-    assert is_abstention(ABSTENTION_ANSWER.upper())
-
-
-def test_is_abstention_extra_whitespace():
-    answer = f"  \n {ABSTENTION_ANSWER} \n "
-    assert is_abstention(answer)
-
-
-def test_is_abstention_rejects_normal_answer():
-    assert not is_abstention("Das Modell verwendet PPO.")
-
-
-def test_is_abstention_rejects_partial_answer():
-    assert not is_abstention(ABSTENTION_ANSWER + " Weitere Informationen.")
-
-
-def test_is_abstention_rejects_empty_answer():
-    assert not is_abstention("")
-
-
-# --------------------------------------------------
-# 3. Tests for contains_expected_keywords()
-# --------------------------------------------------
-
-@pytest.mark.parametrize(
-    ("answer", "keywords", "expected"),
-    [
-        ("Das Modell verwendet PPO.", ["ppo"], True),
-        ("Training mit PPO und LSTM.", ["PPO", "LSTM"], True),
-        ("Training mit PPO.", ["PPO", "LSTM"], False),
-        ("Das Modell nutzt Reinforcement Learning.", ["learning"], True),
-        ("Keine Information vorhanden.", ["PPO"], False),
-        ("", ["PPO"], False),
-        ("Beliebige Antwort", [], True),
-        ("PPO PPO PPO", ["PPO", "PPO"], True),
-    ],
-)
-def test_contains_expected_keywords(answer, keywords, expected):
-    assert contains_expected_keywords(answer, keywords) is expected
-
-
-# --------------------------------------------------
-# 4. Tests for valid JSONL cases
-# --------------------------------------------------
 
 def write_jsonl(tmp_path, cases):
     path = tmp_path / "questions.jsonl"
     path.write_text(
-        "\n".join(json.dumps(case) for case in cases),
+        "\n".join(json.dumps(case, ensure_ascii=False) for case in cases),
         encoding="utf-8",
     )
     return path
 
 
-def test_load_valid_answerable_question(tmp_path):
+def answerable_case(**overrides):
+    case = {
+        "question": "Welche Genauigkeit?",
+        "expected_pages": [4],
+        "expected_facts": [["85.4%", "85,4%"], ["classification accuracy"]],
+        "answerable": True,
+    }
+    case.update(overrides)
+    return case
+
+
+def test_load_rejects_missing_expected_facts(tmp_path):
+    path = write_jsonl(
+        tmp_path,
+        [{"question": "Fact?", "expected_pages": [1], "answerable": True}],
+    )
+
+    with pytest.raises(ValueError, match="expected_facts must be a list"):
+        load_question_cases(path)
+
+
+def test_load_rejects_empty_expected_facts_for_answerable_case(tmp_path):
     path = write_jsonl(
         tmp_path,
         [
             {
-                "question": "Welche Methode?",
+                "question": "Fact?",
                 "expected_pages": [1],
-                "expected_keywords": ["PPO"],
+                "expected_facts": [],
                 "answerable": True,
             }
         ],
     )
 
-    cases = load_question_cases(path)
+    with pytest.raises(ValueError, match="at least one expected fact"):
+        load_question_cases(path)
 
-    assert len(cases) == 1
-    assert cases[0] == {
-        "question": "Welche Methode?",
-        "expected_pages": [1],
-        "expected_keywords": ["PPO"],
-        "answerable": True,
+
+def test_load_accepts_empty_facts_for_unanswerable_case(tmp_path):
+    path = write_jsonl(
+        tmp_path,
+        [
+            {
+                "question": "Unknown?",
+                "expected_pages": [],
+                "expected_facts": [],
+                "answerable": False,
+            }
+        ],
+    )
+
+    assert load_question_cases(path)[0]["expected_facts"] == []
+
+
+def test_load_rejects_malformed_fact_group(tmp_path):
+    path = write_jsonl(
+        tmp_path,
+        [answerable_case(expected_facts=[["85.4%"], []])],
+    )
+
+    with pytest.raises(ValueError, match="non-empty list of strings"):
+        load_question_cases(path)
+
+
+def test_question_dataset_has_facts_for_every_answerable_case():
+    from pathlib import Path
+
+    cases = load_question_cases(Path("evaluation/questions.jsonl"))
+
+    assert cases
+    assert all(
+        case["expected_facts"]
+        for case in cases
+        if case["answerable"]
+    )
+
+
+def test_fact_groups_support_alternative_spellings():
+    matches = expected_fact_matches(
+        "Die Genauigkeit beträgt 85,4%.",
+        [["85.4%", "85,4%"]],
+    )
+
+    assert matches == [True]
+
+
+def test_facts_are_checked_individually():
+    matches = expected_fact_matches(
+        "Das Netzwerk erreicht 85.4% classification accuracy.",
+        [["85.4%", "85,4%"], ["classification accuracy"], ["15-53-1"]],
+    )
+
+    assert matches == [True, True, False]
+
+
+@pytest.mark.parametrize(
+    ("answer", "fact"),
+    [
+        ("Die Architektur ist 15-53-1.", "15–53–1"),
+        ("Die Genauigkeit beträgt 85.4 %.", "85.4%"),
+        ("Die Genauigkeit beträgt 85,4%.", "85,4 %"),
+    ],
+)
+def test_fact_matching_normalizes_dashes_and_percent_spacing(answer, fact):
+    assert expected_fact_matches(answer, [[fact]]) == [True]
+
+
+def test_fact_matching_uses_word_boundaries():
+    assert expected_fact_matches("The value is 13745.", [["3745"]]) == [False]
+
+
+def test_cited_pages_only_reads_explicit_bracketed_citations():
+    assert cited_pages("The answer is [Seite 4], not plain Seite 5.") == {4}
+
+
+def test_cited_pages_extracts_comma_separated_pages_in_one_bracket():
+    assert cited_pages("Belege [Seite 1, Seite 2] stützen die Antwort.") == {1, 2}
+
+
+def test_wrong_explicit_citation_does_not_count_as_citation_hit():
+    result = evaluate_case(
+        answerable_case(),
+        "Das Netzwerk erreicht 85.4% classification accuracy [Seite 5].",
+        {4},
+    )
+
+    assert result["retrieval_hit"] is True
+    assert result["citation_hit"] is False
+    assert result["matched_facts"] == 2
+    assert result["unretrieved_cited_pages"] == [5]
+
+
+def test_retrieved_citations_are_not_reported_as_unretrieved():
+    result = evaluate_case(
+        answerable_case(),
+        "Das Netzwerk erreicht 85.4% classification accuracy [Seite 4].",
+        {4},
+    )
+
+    assert result["unretrieved_cited_pages"] == []
+
+
+def test_retrieval_citations_are_not_treated_as_llm_citations():
+    result = evaluate_case(
+        answerable_case(),
+        "Das Netzwerk erreicht 85.4% classification accuracy.",
+        {4},
+    )
+
+    assert result["retrieved_pages"] == [4]
+    assert result["explicitly_cited_pages"] == []
+    assert result["citation_hit"] is False
+
+
+def test_abstention_is_detected_for_answerable_questions():
+    result = evaluate_case(
+        answerable_case(),
+        ABSTENTION_ANSWER,
+        {4},
+    )
+
+    assert result["abstained"] is True
+    assert result["matched_facts"] == 0
+
+
+def test_correct_abstention_counts_for_unsupported_question():
+    case = {
+        "question": "Welche GPU?",
+        "expected_pages": [],
+        "expected_facts": [],
+        "answerable": False,
+    }
+
+    result = evaluate_case(case, ABSTENTION_ANSWER, set())
+    metrics = summarize_results([result])
+
+    assert result["abstention_correct"] is True
+    assert metrics["abstention_accuracy"] == {
+        "hits": 1,
+        "total": 1,
+        "rate": 1.0,
     }
 
 
-def test_load_unanswerable_question(tmp_path):
-    path = write_jsonl(
-        tmp_path,
-        [
-            {
-                "question": "Welche GPU?",
-                "expected_pages": [],
-                "answerable": False,
-            }
-        ],
+def test_metrics_are_separate_and_have_no_combined_accuracy():
+    answer_result = evaluate_case(
+        answerable_case(),
+        "85.4% classification accuracy [Seite 4].",
+        {4},
+    )
+    abstention_result = evaluate_case(
+        {
+            "question": "Unknown?",
+            "expected_pages": [],
+            "expected_facts": [],
+            "answerable": False,
+        },
+        ABSTENTION_ANSWER,
+        set(),
     )
 
-    cases = load_question_cases(path)
+    metrics = summarize_results([answer_result, abstention_result])
 
-    assert len(cases) == 1
-    assert cases[0]["answerable"] is False
-    assert cases[0]["expected_pages"] == []
-    assert cases[0]["expected_keywords"] == []
-
-
-def test_load_multiple_questions(tmp_path):
-    path = write_jsonl(
-        tmp_path,
-        [
-            {
-                "question": "Welche Methode?",
-                "expected_pages": [1, 3],
-                "expected_keywords": ["PPO"],
-            },
-            {
-                "question": "Welche GPU?",
-                "expected_pages": [],
-                "answerable": False,
-            },
-        ],
-    )
-
-    cases = load_question_cases(path)
-
-    assert len(cases) == 2
-    assert cases[0]["answerable"] is True
-    assert cases[1]["answerable"] is False
+    assert set(metrics) == {
+        "retrieval_hit_at_k",
+        "citation_hit_rate",
+        "fact_match_rate",
+        "abstention_accuracy",
+    }
+    assert metrics["fact_match_rate"] == {"hits": 2, "total": 2, "rate": 1.0}
 
 
-def test_load_applies_defaults(tmp_path):
-    path = write_jsonl(
-        tmp_path,
-        [
-            {
-                "question": "Welche Methode?",
-                "expected_pages": [2],
-            }
-        ],
-    )
+def test_report_is_written_as_readable_json(tmp_path):
+    report_path = tmp_path / "results" / "evaluation.json"
+    report = {"metrics": {"fact_match_rate": {"hits": 1, "total": 1, "rate": 1.0}}}
 
-    cases = load_question_cases(path)
+    write_report(report_path, report)
 
-    assert cases[0]["answerable"] is True
-    assert cases[0]["expected_keywords"] == []
+    assert json.loads(report_path.read_text(encoding="utf-8")) == report
 
-
-def test_load_trims_whitespace(tmp_path):
-    path = write_jsonl(
-        tmp_path,
-        [
-            {
-                "question": "  Welche Methode?  ",
-                "expected_pages": [2],
-                "expected_keywords": ["  PPO  "],
-            }
-        ],
-    )
-
-    cases = load_question_cases(path)
-
-    assert cases[0]["question"] == "Welche Methode?"
-    assert cases[0]["expected_keywords"] == ["PPO"]
-
-
-def test_load_empty_file(tmp_path):
-    path = tmp_path / "empty.jsonl"
-    path.write_text("", encoding="utf-8")
-
-    assert load_question_cases(path) == []
-
-
-def test_load_skips_empty_lines(tmp_path):
-    path = tmp_path / "questions.jsonl"
-    path.write_text(
-        '\n\n{"question": "Test?", "expected_pages": [1]}\n\n',
-        encoding="utf-8",
-    )
-
-    cases = load_question_cases(path)
-
-    assert len(cases) == 1
-
-
-# --------------------------------------------------
-# 5. Tests for invalid JSONL cases
-# --------------------------------------------------
 
 @pytest.mark.parametrize(
-    ("case", "error_message"),
+    "answer",
     [
-        (
-            {"question": "", "expected_pages": [1]},
-            "question must not be empty",
-        ),
-        (
-            {"question": "Test?", "expected_pages": []},
-            "answerable questions need at least one expected page",
-        ),
-        (
-            {"question": "Test?", "expected_pages": [-1]},
-            "expected_pages must contain",
-        ),
-        (
-            {"question": "Test?", "expected_pages": [0]},
-            "expected_pages must contain",
-        ),
-        (
-            {"question": "Test?", "expected_pages": ["1"]},
-            "expected_pages must contain",
-        ),
-        (
-            {"question": "Test?", "expected_pages": [True]},
-            "expected_pages must contain",
-        ),
-        (
-            {"question": "Test?", "expected_pages": None},
-            "expected_pages must contain",
-        ),
-        (
-            {"question": "Test?", "expected_pages": [1], "answerable": "yes"},
-            "answerable must be true or false",
-        ),
-        (
-            {"question": "Test?", "expected_pages": [1], "expected_keywords": "PPO"},
-            "expected_keywords must contain",
-        ),
-        (
-            {"question": "Test?", "expected_pages": [1], "expected_keywords": [""]},
-            "expected_keywords must contain",
-        ),
-        (
-            {"question": "Test?", "expected_pages": [1], "expected_keywords": [123]},
-            "expected_keywords must contain",
-        ),
+        ABSTENTION_ANSWER,
+        f'  "{ABSTENTION_ANSWER}"  ',
+        ABSTENTION_ANSWER.upper(),
     ],
 )
-def test_load_rejects_invalid_cases(tmp_path, case, error_message):
-    path = write_jsonl(tmp_path, [case])
-
-    with pytest.raises(ValueError, match=error_message):
-        load_question_cases(path)
+def test_is_abstention_accepts_normalized_exact_sentence(answer):
+    assert is_abstention(answer)
 
 
-def test_load_rejects_invalid_json(tmp_path):
-    path = tmp_path / "invalid.jsonl"
-    path.write_text(
-        '{"question": "Test?", "expected_pages": [1]\n',
-        encoding="utf-8",
-    )
-
-    with pytest.raises(ValueError, match="Invalid JSON on line 1"):
-        load_question_cases(path)
-
-
-def test_load_rejects_non_object_json(tmp_path):
-    path = tmp_path / "invalid.jsonl"
-    path.write_text('["not", "an", "object"]', encoding="utf-8")
-
-    with pytest.raises(ValueError, match="expected a JSON object"):
-        load_question_cases(path)
-
-
-def test_load_reports_correct_line_number(tmp_path):
-    path = tmp_path / "questions.jsonl"
-    path.write_text(
-        '\n{"question": "Valid?", "expected_pages": [1]}\ninvalid-json',
-        encoding="utf-8",
-    )
-
-    with pytest.raises(ValueError, match="Invalid JSON on line 3"):
-        load_question_cases(path)
+def test_is_abstention_rejects_extra_claims():
+    assert not is_abstention(ABSTENTION_ANSWER + " Das Paper verwendet PPO.")

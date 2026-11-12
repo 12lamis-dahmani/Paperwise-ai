@@ -1,5 +1,8 @@
 from paperwise.generation import OllamaClient
-from paperwise.generation.prompts import build_question_prompt
+from paperwise.generation.prompts import (
+    build_question_prompt,
+    remove_mixed_abstention,
+)
 from paperwise.ingestion import chunk_pages, load_pdf
 from paperwise.models import AnswerResponse, Citation
 from paperwise.retrieval import OllamaEmbeddings, Retriever
@@ -19,7 +22,10 @@ class RAGPipeline:
 
     def ask(self, question: str) -> AnswerResponse:
         retrieved = self.retriever.retrieve(question)
-        answer = self.generator.answer(build_question_prompt(question, retrieved))
+        generated_answer = self.generator.answer(
+            build_question_prompt(question, retrieved)
+        )
+        answer = remove_mixed_abstention(generated_answer)
         citations = [
             Citation(page=chunk.page, text=chunk.text, score=score)
             for chunk, score in retrieved
